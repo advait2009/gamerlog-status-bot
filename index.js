@@ -18,37 +18,27 @@ const {
 const util = require("minecraft-server-util");
 const cron = require("node-cron");
 const fs = require("fs");
-const Parser = require("rss-parser");
-
-const ytParser = new Parser();
 
 // ---------------- CLIENT ----------------
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers
-  ]
+  intents: [GatewayIntentBits.Guilds]
 });
 
 // ---------------- CONFIG ----------------
 const STATUS_CHANNEL = "1431553799700480186";
-const WELCOME_CHANNEL_ID = "YOUR_WELCOME_CHANNEL_ID";
-const LEAVE_CHANNEL_ID = "YOUR_LEAVE_CHANNEL_ID";
-
 const DATA_FILE = "./memeChannels.json";
-const YT_FILE = "./youtubeChannels.json";
 
 // ---------------- STORAGE ----------------
-function loadJSON(file) {
-  if (!fs.existsSync(file)) return {};
-  return JSON.parse(fs.readFileSync(file));
+function loadData() {
+  if (!fs.existsSync(DATA_FILE)) return {};
+  return JSON.parse(fs.readFileSync(DATA_FILE));
 }
 
-function saveJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+function saveData(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-// ---------------- MEME ----------------
+// ---------------- MEME API ----------------
 async function getMeme() {
   const res = await fetch("https://meme-api.com/gimme");
   return await res.json();
@@ -67,41 +57,43 @@ async function sendMeme(channel) {
 
     await channel.send({ embeds: [embed] });
   } catch (err) {
-    console.error(err);
+    console.error("Meme error:", err);
   }
 }
 
-// ---------------- SLASH COMMANDS ----------------
+// ---------------- COMMANDS ----------------
 const commands = [
-  new SlashCommandBuilder().setName("status").setDescription("Minecraft status"),
+  new SlashCommandBuilder()
+    .setName("status")
+    .setDescription("Minecraft server status"),
 
-  new SlashCommandBuilder().setName("meme").setDescription("Send meme"),
+  new SlashCommandBuilder()
+    .setName("meme")
+    .setDescription("Send a random meme"),
 
   new SlashCommandBuilder()
     .setName("meme-set")
     .setDescription("Set meme channel")
-    .addChannelOption(o => o.setName("channel").setRequired(true)),
+    .addChannelOption(o =>
+      o.setName("channel").setDescription("Channel").setRequired(true)
+    ),
 
-  new SlashCommandBuilder().setName("meme-disable").setDescription("Disable memes"),
+  new SlashCommandBuilder()
+    .setName("meme-disable")
+    .setDescription("Disable auto memes"),
 
   new SlashCommandBuilder()
     .setName("ticket-panel")
     .setDescription("Send ticket panel")
-    .addChannelOption(o => o.setName("channel").setRequired(true)),
-
-  new SlashCommandBuilder().setName("ticket-close").setDescription("Close ticket"),
-
-  new SlashCommandBuilder()
-    .setName("youtube-set")
-    .setDescription("Set YouTube alerts channel")
-    .addChannelOption(o => o.setName("channel").setRequired(true)),
+    .addChannelOption(o =>
+      o.setName("channel").setDescription("Channel").setRequired(true)
+    ),
 
   new SlashCommandBuilder()
-    .setName("youtube-remove")
-    .setDescription("Disable YouTube alerts")
+    .setName("ticket-close")
+    .setDescription("Close ticket")
 ].map(c => c.toJSON());
 
-// ---------------- REGISTER ----------------
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
 (async () => {
@@ -109,49 +101,8 @@ const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
     Routes.applicationCommands(process.env.CLIENT_ID),
     { body: commands }
   );
-  console.log("✅ Commands ready");
+  console.log("✅ Commands registered");
 })();
-
-// ---------------- YOUTUBE ----------------
-let lastVideoId = null;
-
-async function checkYouTube() {
-  const data = loadJSON(YT_FILE);
-
-  for (const guildId in data) {
-    const channelId = data[guildId];
-
-    try {
-      const feed = await ytParser.parseURL(
-        "https://www.youtube.com/feeds/videos.xml?channel_id=YOUR_CHANNEL_ID"
-      );
-
-      const latest = feed.items[0];
-      if (!latest) return;
-
-      if (latest.id === lastVideoId) return;
-      lastVideoId = latest.id;
-
-      const channel = await client.channels.fetch(channelId);
-
-      if (channel) {
-        channel.send({
-          content: "@everyone",
-          embeds: [
-            new EmbedBuilder()
-              .setColor("Red")
-              .setTitle("🎥 New Video Uploaded!")
-              .setDescription(`[${latest.title}](${latest.link})`)
-              .setTimestamp()
-          ]
-        });
-      }
-
-    } catch (err) {
-      console.error(err);
-    }
-  }
-}
 
 // ---------------- READY ----------------
 client.once("ready", () => {
@@ -160,68 +111,79 @@ client.once("ready", () => {
   // 🌞 Morning
   cron.schedule("0 7 * * *", async () => {
     const ch = await client.channels.fetch(STATUS_CHANNEL);
-    if (ch) ch.send("🌞 Good Morning!");
+    if (!ch) return;
+
+    ch.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("Yellow")
+          .setTitle("🌞 Good Morning!")
+          .setDescription("Have a great day ☀️")
+      ]
+    });
   }, { timezone: "Asia/Kolkata" });
 
   // 🌙 Night
   cron.schedule("0 23 * * *", async () => {
     const ch = await client.channels.fetch(STATUS_CHANNEL);
-    if (ch) ch.send("🌙 Good Night!");
+    if (!ch) return;
+
+    ch.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("DarkBlue")
+          .setTitle("🌙 Good Night!")
+          .setDescription("Sleep well 😴")
+      ]
+    });
   }, { timezone: "Asia/Kolkata" });
 
-  // 😂 memes hourly
-  setInterval(() => {
-    const data = loadJSON(DATA_FILE);
-    for (const g in data) {
-      client.channels.fetch(data[g]).then(sendMeme).catch(() => {});
+  // 😂 Auto meme every 1 hour
+  setInterval(async () => {
+    const data = loadData();
+
+    for (const guildId in data) {
+      try {
+        const ch = await client.channels.fetch(data[guildId]);
+        if (ch) sendMeme(ch);
+      } catch {}
     }
   }, 60 * 60 * 1000);
-
-  // 🎥 YouTube check every 2 min
-  setInterval(checkYouTube, 2 * 60 * 1000);
-});
-
-// ---------------- WELCOME ----------------
-client.on("guildMemberAdd", async (member) => {
-  try {
-    member.send(`👋 Welcome to ${member.guild.name}!`).catch(() => {});
-
-    const ch = await member.guild.channels.fetch(WELCOME_CHANNEL_ID);
-
-    if (ch) {
-      ch.send(`${member} joined the server 🎉`);
-    }
-  } catch {}
-});
-
-// ---------------- LEAVE ----------------
-client.on("guildMemberRemove", async (member) => {
-  try {
-    const ch = await member.guild.channels.fetch(LEAVE_CHANNEL_ID);
-
-    if (ch) {
-      ch.send(`👋 ${member.user.username} left the server`);
-    }
-  } catch {}
 });
 
 // ---------------- INTERACTIONS ----------------
 client.on("interactionCreate", async (interaction) => {
 
-  if (!interaction.isChatInputCommand()) return;
-
-  // ---------- STATUS ----------
+  // ================= STATUS =================
   if (interaction.commandName === "status") {
     try {
       const status = await util.status("play.gamerlog.fun", 25575);
 
-      return interaction.reply(`${status.players.online}/${status.players.max} players online`);
+      return interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Green")
+            .setTitle("🟢 Server Status")
+            .addFields(
+              { name: "Players", value: `${status.players.online}/${status.players.max}` },
+              { name: "Version", value: status.version.name },
+              { name: "Ping", value: `${status.roundTripLatency} ms` }
+            )
+        ]
+      });
+
     } catch {
-      return interaction.reply("Server offline");
+      return interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Red")
+            .setTitle("🔴 Server Offline")
+        ]
+      });
     }
   }
 
-  // ---------- MEME ----------
+  // ================= MEME =================
   if (interaction.commandName === "meme") {
     await interaction.deferReply();
     const meme = await getMeme();
@@ -239,75 +201,74 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.commandName === "meme-set") {
     const ch = interaction.options.getChannel("channel");
 
-    const data = loadJSON(DATA_FILE);
+    const data = loadData();
     data[interaction.guild.id] = ch.id;
-    saveJSON(DATA_FILE, data);
+    saveData(data);
 
-    return interaction.reply(`✅ Meme channel set`);
+    return interaction.reply(`✅ Meme channel set to ${ch}`);
   }
 
   if (interaction.commandName === "meme-disable") {
-    const data = loadJSON(DATA_FILE);
+    const data = loadData();
     delete data[interaction.guild.id];
-    saveJSON(DATA_FILE, data);
+    saveData(data);
 
-    return interaction.reply("❌ Disabled");
+    return interaction.reply("❌ Auto memes disabled");
   }
 
-  // ---------- YOUTUBE ----------
-  if (interaction.commandName === "youtube-set") {
-    const ch = interaction.options.getChannel("channel");
-
-    const data = loadJSON(YT_FILE);
-    data[interaction.guild.id] = ch.id;
-    saveJSON(YT_FILE, data);
-
-    return interaction.reply(`🎥 YouTube alerts set`);
-  }
-
-  if (interaction.commandName === "youtube-remove") {
-    const data = loadJSON(YT_FILE);
-    delete data[interaction.guild.id];
-    saveJSON(YT_FILE, data);
-
-    return interaction.reply("❌ YouTube alerts removed");
-  }
-
-  // ---------- TICKET ----------
+  // ================= TICKET PANEL =================
   if (interaction.commandName === "ticket-panel") {
     const ch = interaction.options.getChannel("channel");
 
     const menu = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId("ticket")
-        .setPlaceholder("Select category")
+        .setCustomId("ticket_category")
+        .setPlaceholder("Select Ticket Type")
         .addOptions(
-          { label: "Report", value: "report" },
-          { label: "Purchase", value: "purchase" },
-          { label: "Partner", value: "partner" },
-          { label: "Other", value: "other" }
+          { label: "Report Player", value: "report", emoji: "🚨" },
+          { label: "Purchase", value: "purchase", emoji: "💰" },
+          { label: "Partnership", value: "partner", emoji: "🤝" },
+          { label: "Other", value: "other", emoji: "❓" }
         )
     );
 
-    return ch.send({
-      embeds: [new EmbedBuilder().setTitle("🎫 Tickets")],
-      components: [menu]
-    }).then(() => interaction.reply("Sent"));
+    const embed = new EmbedBuilder()
+      .setColor("Blue")
+      .setTitle("🎫 Support Tickets")
+      .setDescription("Select category to open a ticket");
+
+    await ch.send({ embeds: [embed], components: [menu] });
+
+    return interaction.reply("✅ Ticket panel created");
   }
 
+  // ================= CLOSE TICKET =================
   if (interaction.commandName === "ticket-close") {
-    await interaction.reply("Closing...");
+    if (!interaction.channel.name.includes("ticket")) {
+      return interaction.reply({ content: "❌ Not a ticket channel", ephemeral: true });
+    }
+
+    await interaction.reply("🔒 Closing ticket...");
     setTimeout(() => interaction.channel.delete(), 3000);
   }
 
-  // ---------- MENU ----------
+  // ================= BUTTONS & MENU =================
   if (interaction.isStringSelectMenu()) {
-    if (interaction.customId === "ticket") {
+    if (interaction.customId === "ticket_category") {
 
       const type = interaction.values[0];
+      const id = interaction.user.id;
+
+      let name = `${type}-${id}`;
+      let title = "🎫 Ticket";
+
+      if (type === "report") title = "🚨 Report Ticket";
+      if (type === "purchase") title = "💰 Purchase Ticket";
+      if (type === "partner") title = "🤝 Partnership Ticket";
+      if (type === "other") title = "❓ General Ticket";
 
       const channel = await interaction.guild.channels.create({
-        name: `${type}-${interaction.user.id}`,
+        name,
         type: ChannelType.GuildText,
         permissionOverwrites: [
           {
@@ -315,13 +276,44 @@ client.on("interactionCreate", async (interaction) => {
             deny: [PermissionsBitField.Flags.ViewChannel]
           },
           {
-            id: interaction.user.id,
-            allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+            id: id,
+            allow: [
+              PermissionsBitField.Flags.ViewChannel,
+              PermissionsBitField.Flags.SendMessages
+            ]
           }
         ]
       });
 
-      return interaction.reply({ content: `Created ${channel}`, ephemeral: true });
+      const closeBtn = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("close_ticket")
+          .setLabel("🔒 Close Ticket")
+          .setStyle(ButtonStyle.Danger)
+      );
+
+      channel.send({
+        content: `<@${id}>`,
+        embeds: [
+          new EmbedBuilder()
+            .setColor("Green")
+            .setTitle(title)
+            .setDescription("Support will respond soon.")
+        ],
+        components: [closeBtn]
+      });
+
+      return interaction.reply({
+        content: `✅ Ticket created: ${channel}`,
+        ephemeral: true
+      });
+    }
+  }
+
+  if (interaction.isButton()) {
+    if (interaction.customId === "close_ticket") {
+      await interaction.reply("🔒 Closing ticket...");
+      setTimeout(() => interaction.channel.delete(), 3000);
     }
   }
 });
