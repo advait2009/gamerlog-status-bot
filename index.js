@@ -146,3 +146,27 @@ client.on("interactionCreate", async interaction => {
 });
 
 client.login(process.env.TOKEN);
+
+// 😂 Auto Meme Every Hour
+cron.schedule("0 * * * *", async () => {
+  try {
+    const channel = await client.channels.fetch(CHANNEL_ID);
+
+    if (!channel) return;
+
+    const { data } = await axios.get("https://meme-api.com/gimme");
+
+    const embed = new EmbedBuilder()
+      .setColor("Random")
+      .setTitle("😂 Meme of the Hour")
+      .setDescription(data.title)
+      .setImage(data.url)
+      .setFooter({ text: "Powered by Gamerlog Bot" })
+      .setTimestamp();
+
+    await channel.send({ embeds: [embed] });
+
+  } catch (error) {
+    console.error("Auto Meme Error:", error);
+  }
+});
