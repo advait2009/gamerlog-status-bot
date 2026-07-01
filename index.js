@@ -146,37 +146,3 @@ client.on("interactionCreate", async interaction => {
 });
 
 client.login(process.env.TOKEN);
-
-if (interaction.commandName === "meme") {
-
-  try {
-
-    const response = await axios.get("https://meme-api.com/gimme");
-    const meme = response.data;
-
-    const embed = new EmbedBuilder()
-      .setColor("Random")
-      .setTitle("😂 Random Meme")
-      .setDescription(meme.title)
-      .setImage(meme.url)
-      .setFooter({
-        text: "Powered by Gamerlog Bot"
-      })
-      .setTimestamp();
-
-    await interaction.reply({
-      embeds: [embed]
-    });
-
-  } catch (error) {
-
-    console.error(error);
-
-    await interaction.reply({
-      content: "❌ Couldn't fetch a meme.",
-      ephemeral: true
-    });
-
-  }
-
-}
