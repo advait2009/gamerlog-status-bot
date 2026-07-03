@@ -168,6 +168,18 @@ cron.schedule("0 23 * * *", async () => {
       } catch {}
     }
   }, 60 * 60 * 1000);
+  setInterval(async () => {
+    const data = loadData();
+
+    for (const guildId in data) {
+        try {
+            const ch = await client.channels.fetch(data[guildId]);
+            if (ch) await sendMeme(ch);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+}, 60 * 60 * 1000);
 });
 
 // ---------------- INTERACTIONS ----------------
