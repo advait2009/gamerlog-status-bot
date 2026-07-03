@@ -89,9 +89,19 @@ const commands = [
       o.setName("channel").setDescription("Channel").setRequired(true)
     ),
 
-  new SlashCommandBuilder()
-    .setName("ticket-close")
-    .setDescription("Close ticket")
+ new SlashCommandBuilder()
+  .setName("ticket-close")
+  .setDescription("Close ticket"),
+
+new SlashCommandBuilder()
+  .setName("goodmorning")
+  .setDescription("Send Good Morning message")
+  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
+
+new SlashCommandBuilder()
+  .setName("goodnight")
+  .setDescription("Send Good Night message")
+  .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
 ].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
