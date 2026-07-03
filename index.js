@@ -234,6 +234,37 @@ client.on("interactionCreate", async (interaction) => {
 
     return interaction.reply("❌ Auto memes disabled");
   }
+  // ================= GOOD MORNING =================
+if (interaction.commandName === "goodmorning") {
+  return interaction.reply({
+    content: "@everyone",
+    embeds: [
+      new EmbedBuilder()
+        .setColor("Yellow")
+        .setTitle("🌞 Good Morning!")
+        .setDescription("Have a great day ☀️")
+    ],
+    allowedMentions: {
+      parse: ["everyone"]
+    }
+  });
+}
+
+// ================= GOOD NIGHT =================
+if (interaction.commandName === "goodnight") {
+  return interaction.reply({
+    content: "@everyone",
+    embeds: [
+      new EmbedBuilder()
+        .setColor("DarkBlue")
+        .setTitle("🌙 Good Night!")
+        .setDescription("Sleep well 😴")
+    ],
+    allowedMentions: {
+      parse: ["everyone"]
+    }
+  });
+}
 
   // ================= TICKET PANEL =================
   if (interaction.commandName === "ticket-panel") {
