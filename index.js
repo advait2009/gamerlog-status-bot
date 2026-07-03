@@ -105,38 +105,43 @@ const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 })();
 
 // ---------------- READY ----------------
-client.once("ready", () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
+// 🌞 Morning
+cron.schedule("0 7 * * *", async () => {
+  const ch = await client.channels.fetch(STATUS_CHANNEL);
+  if (!ch) return;
 
-  // 🌞 Morning
-  cron.schedule("0 7 * * *", async () => {
-    const ch = await client.channels.fetch(STATUS_CHANNEL);
-    if (!ch) return;
+  ch.send({
+    content: "@everyone",
+    embeds: [
+      new EmbedBuilder()
+        .setColor("Yellow")
+        .setTitle("🌞 Good Morning!")
+        .setDescription("Have a great day ☀️")
+    ],
+    allowedMentions: {
+      parse: ["everyone"]
+    }
+  });
+}, { timezone: "Asia/Kolkata" });
 
-    ch.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor("Yellow")
-          .setTitle("🌞 Good Morning!")
-          .setDescription("Have a great day ☀️")
-      ]
-    });
-  }, { timezone: "Asia/Kolkata" });
+// 🌙 Night
+cron.schedule("0 23 * * *", async () => {
+  const ch = await client.channels.fetch(STATUS_CHANNEL);
+  if (!ch) return;
 
-  // 🌙 Night
-  cron.schedule("0 23 * * *", async () => {
-    const ch = await client.channels.fetch(STATUS_CHANNEL);
-    if (!ch) return;
-
-    ch.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor("DarkBlue")
-          .setTitle("🌙 Good Night!")
-          .setDescription("Sleep well 😴")
-      ]
-    });
-  }, { timezone: "Asia/Kolkata" });
+  ch.send({
+    content: "@everyone",
+    embeds: [
+      new EmbedBuilder()
+        .setColor("DarkBlue")
+        .setTitle("🌙 Good Night!")
+        .setDescription("Sleep well 😴")
+    ],
+    allowedMentions: {
+      parse: ["everyone"]
+    }
+  });
+}, { timezone: "Asia/Kolkata" });
 
   // 😂 Auto meme every 1 hour
   setInterval(async () => {
